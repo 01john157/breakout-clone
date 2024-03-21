@@ -7,6 +7,7 @@ A clone of the 1976 arcade version of [Breakout](https://en.wikipedia.org/wiki/B
 `left stick` move the paddle  
 
 ## Keybindings
+`F5` reset  
 `F11` toggle between windowed mode and the chosen fullscreen mode. Will default to borderless if no fullscreen mode is set.
 
 ## Configuration
