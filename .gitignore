@@ -1,0 +1,11 @@
+/releases
+.vscode
+*.exe
+*.dll
+*.bat
+*.zip
+*.xcf
+*.png
+!assets/*.png
+*.txt
+!data/*.txt

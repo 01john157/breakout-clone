@@ -1,0 +1,18 @@
+WINDOW_RESOLUTION_X=480
+
+WINDOW_RESOLUTION_Y=628
+
+// 0    windowed
+// 1    borderless fullscreen
+// 2    fullscreen
+WINDOW_MODE=0
+
+// 0    fit to window
+// 1    integer
+SCALING_MODE=0
+
+// 0    off
+// 1    on
+VSYNC=1
+
+MAX_FPS=9999
