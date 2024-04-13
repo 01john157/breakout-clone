@@ -49,8 +49,6 @@ int main(int argc, char* args[])
     }
     SDL_Window* window = SDL_CreateWindow("breakout-clone", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, static_cast<int>(config->at("WINDOW_RESOLUTION_X")), static_cast<int>(config->at("WINDOW_RESOLUTION_Y")), window_flags);
     SDL_SetWindowIcon(window, IMG_Load("./assets/window_icon.png"));
-    int window_w {};
-    int window_h {};
     /* window initialisation */ 
 
     /* renderer initialisation */
@@ -113,13 +111,15 @@ int main(int argc, char* args[])
 
     struct Ball {
         float x = RENDER_WIDTH / 2;
-        float y = RENDER_HEIGHT / 2;
+        float y = 40;
         const float w = 6;
         const float h = 6;
         Horizontal_Direction hor = std::uniform_int_distribution{0, 1}(rng) ? LEFT : RIGHT;
         Vertical_Direction ver = std::uniform_int_distribution{0, 1}(rng) ? UP : DOWN;
         float velocity = RENDER_WIDTH * 0.8;
         float angle = 1;
+        bool in_play = true;
+        Uint64 off_time = 0;
     } ball;
 
     const float MIN_ANGLE = (0.4f);
@@ -151,9 +151,14 @@ int main(int argc, char* args[])
         {200, {194, 194, 41}, 1, 1}
     };
 
+    enum Game_State {
+        ATTRACT,
+        GAME
+    } state = ATTRACT;
     int score = 0;
     int lives_used = 0;
     int bricks_hit = 0;
+    int total_bricks_hit = 0;
     bool hit_orange = false;
     bool hit_red = false;
 
@@ -198,8 +203,10 @@ int main(int argc, char* args[])
                     ball.velocity = RENDER_WIDTH * 0.8;
                     ball.angle = 1;
                     bricks_hit = 0;
+                    total_bricks_hit = 0;
                     hit_orange = false;
                     hit_red = false;
+                    paddle.w = 30;
                     lives_used = 0;
                     score = 0;
                     bricks.clear();
@@ -223,6 +230,12 @@ int main(int argc, char* args[])
         {
             stick_angle = static_cast<float>(SDL_GameControllerGetAxis(controller, SDL_CONTROLLER_AXIS_LEFTX) / 32768.0f);
         }
+        
+        bool start_pressed = false;
+        if(SDL_GameControllerGetButton(controller, SDL_CONTROLLER_BUTTON_START) == 1)
+        {
+            start_pressed = true;
+        }
         /* input handling */
 
         /* logic */
@@ -230,11 +243,12 @@ int main(int argc, char* args[])
         accumulator += static_cast<float>(current_time - previous_time) / static_cast<float>(SDL_GetPerformanceFrequency());
         previous_time = current_time;
 
-        // paddle
         while(accumulator >= dT)
         {
-            if(lives_used == 3)
+            if(state == ATTRACT && start_pressed)
             {
+                state = GAME;
+                paddle.x = RENDER_WIDTH / 2;
                 ball.x = RENDER_WIDTH / 2;
                 ball.y = RENDER_HEIGHT / 2;
                 ball.hor = std::uniform_int_distribution{0, 1}(rng) ? LEFT : RIGHT;
@@ -242,8 +256,10 @@ int main(int argc, char* args[])
                 ball.velocity = RENDER_WIDTH * 0.8;
                 ball.angle = 1;
                 bricks_hit = 0;
+                total_bricks_hit = 0;
                 hit_orange = false;
                 hit_red = false;
+                paddle.w = 30;
                 lives_used = 0;
                 score = 0;
                 bricks.clear();
@@ -259,159 +275,256 @@ int main(int argc, char* args[])
                 };
             }
 
-            if(stick_angle != 0)
+            if(total_bricks_hit == 204 || lives_used == 3)
             {
-                float distance_to_move = (paddle.velocity * stick_angle) * dT;
-                if(paddle.x + distance_to_move <= BORDER_WIDTH)
-                {
-                    paddle.x = BORDER_WIDTH;
-                }
-                else if((paddle.x + paddle.w-1) + distance_to_move >= RENDER_WIDTH-BORDER_WIDTH)
-                {
-                    paddle.x = RENDER_WIDTH-BORDER_WIDTH - paddle.w;
-                }
-                else
-                {
-                    paddle.x += distance_to_move;
-                }
-            }
-
-            // ball
-            if(ball.y <= BORDER_HEIGHT+1)
-            {
-                paddle.w = 15;
-            }
-            if(ball.x < BORDER_WIDTH)
-            {
-                Mix_PlayChannel(-1, ball_hit_wall, 0);
-                ball.hor = RIGHT;
-            }
-            else if((ball.x + ball.w-1) > RENDER_WIDTH-BORDER_WIDTH)
-            {
-                Mix_PlayChannel(-1, ball_hit_wall, 0);
-                ball.hor = LEFT;
-            }
-
-            if(ball.y < BORDER_HEIGHT)
-            {
-                Mix_PlayChannel(-1, ball_hit_wall, 0);
-                ball.ver = DOWN;
-            }
-            else if((ball.y + ball.h-1) > RENDER_HEIGHT)
-            {
-                ball.ver = UP;
-                ball.x = static_cast<float>(std::uniform_int_distribution{BORDER_WIDTH, RENDER_WIDTH-BORDER_WIDTH}(rng));
+                state = ATTRACT;
+                ball.x = RENDER_WIDTH / 2;
                 ball.y = RENDER_HEIGHT / 2;
                 ball.hor = std::uniform_int_distribution{0, 1}(rng) ? LEFT : RIGHT;
                 ball.ver = DOWN;
                 ball.velocity = RENDER_WIDTH * 0.8;
                 ball.angle = 1;
                 bricks_hit = 0;
+                total_bricks_hit = 0;
                 hit_orange = false;
                 hit_red = false;
-                lives_used++;
+                paddle.w = 30;
+                lives_used = 0;
+                bricks.clear();
+                bricks = std::vector<Row_of_Bricks>{
+                    {117, {163, 30, 10}, 7, 4},
+                    {128, {163, 30, 10}, 7, 4},
+                    {141, {194, 133, 10}, 5, 3},
+                    {152, {194, 133, 10}, 5, 3},
+                    {165, {10, 133, 51}, 3, 2},
+                    {176, {10, 133, 51}, 3, 2},
+                    {189, {194, 194, 41}, 1, 1},
+                    {200, {194, 194, 41}, 1, 1}
+                };
             }
-            else if((ball.y + ball.h >= paddle.y && paddle.y + paddle.h > ball.y) && (ball.x + ball.w >= paddle.x && paddle.x + paddle.w > ball.x))
+            if(total_bricks_hit == 102)
             {
-                Mix_PlayChannel(-1, ball_hit_paddle, 0);
-                ball.angle = -((paddle.x + ((paddle.w-1)/2)) - ball.x) / ((paddle.w-1)/2);
-                if(ball.angle < 0)
-                {
-                    ball.hor = LEFT;
-                    ball.angle = 1 - -ball.angle;
-                }
-                else
-                {
-                    ball.hor = RIGHT;
-                    ball.angle = 1 - ball.angle;
-                }
-                if(ball.angle < MIN_ANGLE)
-                {
-                    ball.angle = MIN_ANGLE;
-                }
-                ball.ver = UP;
+                ball.in_play = false;
+                ball.x = RENDER_WIDTH / 2;
+                ball.y = RENDER_HEIGHT / 2;
+                ball.hor = std::uniform_int_distribution{0, 1}(rng) ? LEFT : RIGHT;
+                ball.ver = DOWN;
+                ball.velocity = RENDER_WIDTH * 0.8;
+                ball.angle = 1;
+                bricks_hit = 0;
+                total_bricks_hit = 0;
+                hit_orange = false;
+                hit_red = false;
+                paddle.w = 30;
+                lives_used = 0;
+                bricks.clear();
+                bricks = std::vector<Row_of_Bricks>{
+                    {117, {163, 30, 10}, 7, 4},
+                    {128, {163, 30, 10}, 7, 4},
+                    {141, {194, 133, 10}, 5, 3},
+                    {152, {194, 133, 10}, 5, 3},
+                    {165, {10, 133, 51}, 3, 2},
+                    {176, {10, 133, 51}, 3, 2},
+                    {189, {194, 194, 41}, 1, 1},
+                    {200, {194, 194, 41}, 1, 1}
+                };
             }
-            else
+            
+            // paddle
+            if(state == GAME)
             {
-                for(size_t row = 0; row < bricks.size(); row++)
+                if(stick_angle != 0)
                 {
-                    if(ball.y + ball.h >= static_cast<float>(bricks[row].y) && static_cast<float>(bricks[row].y + brick_h) > ball.y)
+                    float distance_to_move = (paddle.velocity * stick_angle) * dT;
+                    if(paddle.x + distance_to_move <= BORDER_WIDTH)
                     {
-                        for(size_t brick = 0; brick < bricks[row].x.size(); brick++)
-                        {
-                            if(ball.x + ball.w >= static_cast<float>(bricks[row].x[brick]) && static_cast<float>(bricks[row].x[brick] + brick_w) > ball.x)
-                            {
-                                switch(bricks[row].audio_play_count)
-                                {
-                                    case 1: Mix_PlayChannel(-1, ball_hit_brick_1, 0); break;
-                                    case 2: Mix_PlayChannel(-1, ball_hit_brick_2, 0); break;
-                                    case 3: Mix_PlayChannel(-1, ball_hit_brick_3, 0); break;
-                                    case 4: Mix_PlayChannel(-1, ball_hit_brick_4, 0); break;
-                                }
-                                bricks_hit++;
-                                if(bricks_hit == 4 || bricks_hit == 12)
-                                {
-                                    ball.velocity += 24;
-                                }
-                                if(!hit_orange)
-                                {
-                                    if(bricks[row].colour.b == 10)
-                                    {
-                                        hit_orange = true;
-                                        ball.velocity += 24;
-                                    }
-                                }
-                                if(!hit_red)
-                                {
-                                    if(bricks[row].colour.b == 10)
-                                    {
-                                        hit_red = true;
-                                        ball.velocity += 24;
-                                    }
-                                }
-
-                                score += bricks[row].score_given;
-
-                                std::array<float, 4> distances {
-                                    (ball.y + ball.h) - static_cast<float>(bricks[row].y + brick_h),
-                                    static_cast<float>(bricks[row].y) - ball.y,
-                                    static_cast<float>(bricks[row].x[brick]) - ball.x,
-                                    (ball.x + ball.w) - static_cast<float>(bricks[row].x[brick] + brick_w)
-                                };
-                                float largest_distance = 0;
-                                for(size_t i = 0; i < distances.size(); i++)
-                                {
-                                    if(distances[i] > largest_distance)
-                                    {
-                                        largest_distance = distances[i];
-                                    }
-                                }
-                                if(distances[0] == largest_distance)
-                                {
-                                    ball.ver = DOWN;
-                                }
-                                if(distances[1] == largest_distance)
-                                {
-                                    ball.ver = UP;
-                                }
-                                if(distances[2] == largest_distance)
-                                {
-                                    ball.hor = LEFT;
-                                }
-                                if(distances[3] == largest_distance)
-                                {
-                                    ball.hor = RIGHT;
-                                }
-
-                                bricks[row].x.erase(bricks[row].x.begin() + static_cast<int>(brick));
-                            }
-                        }
+                        paddle.x = BORDER_WIDTH;
+                    }
+                    else if((paddle.x + paddle.w-1) + distance_to_move >= RENDER_WIDTH-BORDER_WIDTH)
+                    {
+                        paddle.x = RENDER_WIDTH-BORDER_WIDTH - paddle.w;
+                    }
+                    else
+                    {
+                        paddle.x += distance_to_move;
                     }
                 }
             }
 
-            ball.x += static_cast<float>(ball.hor) * (ball.velocity * std::cos(ball.angle)) * dT;
-            ball.y += static_cast<float>(ball.ver) * (ball.velocity * std::sin(ball.angle)) * dT;
+            // ball
+            if(!ball.in_play)
+            {
+                if(static_cast<float>(SDL_GetPerformanceCounter() - ball.off_time) / static_cast<float>(SDL_GetPerformanceFrequency()) >= 0.5)
+                {
+                    ball.in_play = true;
+                    ball.off_time = 0;
+                }
+            }
+            else
+            {
+                if(state == GAME)
+                {
+                    if(ball.y <= BORDER_HEIGHT+1)
+                    {
+                        paddle.w = 15;
+                    }
+                }
+
+                if(ball.x < BORDER_WIDTH)
+                {
+                    Mix_PlayChannel(-1, ball_hit_wall, 0);
+                    ball.hor = RIGHT;
+                }
+                else if((ball.x + ball.w-1) > RENDER_WIDTH-BORDER_WIDTH)
+                {
+                    Mix_PlayChannel(-1, ball_hit_wall, 0);
+                    ball.hor = LEFT;
+                }
+
+                if(ball.y < BORDER_HEIGHT)
+                {
+                    Mix_PlayChannel(-1, ball_hit_wall, 0);
+                    ball.ver = DOWN;
+                }
+                else if((ball.y + ball.h-1) > RENDER_HEIGHT)
+                {
+                    if(state == ATTRACT)
+                    {
+                        Mix_PlayChannel(-1, ball_hit_wall, 0);
+                        ball.ver = UP;
+                    }
+                    else if(state == GAME)
+                    {
+                        ball.in_play = false;
+                        ball.off_time = SDL_GetPerformanceCounter();
+                        ball.ver = UP;
+                        ball.x = static_cast<float>(std::uniform_int_distribution{BORDER_WIDTH, RENDER_WIDTH-BORDER_WIDTH}(rng));
+                        ball.y = RENDER_HEIGHT / 2;
+                        ball.hor = std::uniform_int_distribution{0, 1}(rng) ? LEFT : RIGHT;
+                        ball.ver = DOWN;
+                        ball.velocity = RENDER_WIDTH * 0.8;
+                        ball.angle = 1;
+                        bricks_hit = 0;
+                        hit_orange = false;
+                        hit_red = false;
+                        lives_used++;
+                    }
+                }
+                else if((ball.y + ball.h >= paddle.y && paddle.y + paddle.h > ball.y) && (ball.x + ball.w >= paddle.x && paddle.x + paddle.w > ball.x))
+                {
+                    if(state == GAME)
+                    {
+                        Mix_PlayChannel(-1, ball_hit_paddle, 0);
+                        ball.angle = -((paddle.x + ((paddle.w-1)/2)) - ball.x) / ((paddle.w-1)/2);
+                        if(ball.angle < 0)
+                        {
+                            ball.hor = LEFT;
+                            ball.angle = 1 - -ball.angle;
+                        }
+                        else
+                        {
+                            ball.hor = RIGHT;
+                            ball.angle = 1 - ball.angle;
+                        }
+                        if(ball.angle < MIN_ANGLE)
+                        {
+                            ball.angle = MIN_ANGLE;
+                        }
+                        ball.ver = UP;
+                    }
+                }
+                else
+                {
+                    for(size_t row = 0; row < bricks.size(); row++)
+                    {
+                        if(ball.y + ball.h >= static_cast<float>(bricks[row].y) && static_cast<float>(bricks[row].y + brick_h) > ball.y)
+                        {
+                            for(size_t brick = 0; brick < bricks[row].x.size(); brick++)
+                            {
+                                if(ball.x + ball.w >= static_cast<float>(bricks[row].x[brick]) && static_cast<float>(bricks[row].x[brick] + brick_w) > ball.x)
+                                {
+                                    if(state == ATTRACT)
+                                    {
+                                        Mix_PlayChannel(-1, ball_hit_brick_1, 0);
+                                    }
+                                    else if(state == GAME)
+                                    {
+                                        switch(bricks[row].audio_play_count)
+                                        {
+                                            case 1: Mix_PlayChannel(-1, ball_hit_brick_1, 0); break;
+                                            case 2: Mix_PlayChannel(-1, ball_hit_brick_2, 0); break;
+                                            case 3: Mix_PlayChannel(-1, ball_hit_brick_3, 0); break;
+                                            case 4: Mix_PlayChannel(-1, ball_hit_brick_4, 0); break;
+                                        }
+                                        bricks_hit++;
+                                        total_bricks_hit++;
+                                        if(bricks_hit == 4 || bricks_hit == 12)
+                                        {
+                                            ball.velocity += 24;
+                                        }
+                                        if(!hit_orange)
+                                        {
+                                            if(bricks[row].colour.b == 10)
+                                            {
+                                                hit_orange = true;
+                                                ball.velocity += 24;
+                                            }
+                                        }
+                                        if(!hit_red)
+                                        {
+                                            if(bricks[row].colour.b == 10)
+                                            {
+                                                hit_red = true;
+                                                ball.velocity += 24;
+                                            }
+                                        }
+
+                                        score += bricks[row].score_given;
+                                    }
+
+                                    std::array<float, 4> distances {
+                                        (ball.y + ball.h) - static_cast<float>(bricks[row].y + brick_h),
+                                        static_cast<float>(bricks[row].y) - ball.y,
+                                        static_cast<float>(bricks[row].x[brick]) - ball.x,
+                                        (ball.x + ball.w) - static_cast<float>(bricks[row].x[brick] + brick_w)
+                                    };
+                                    float largest_distance = 0;
+                                    for(size_t i = 0; i < distances.size(); i++)
+                                    {
+                                        if(distances[i] > largest_distance)
+                                        {
+                                            largest_distance = distances[i];
+                                        }
+                                    }
+                                    if(distances[0] == largest_distance)
+                                    {
+                                        ball.ver = DOWN;
+                                    }
+                                    if(distances[1] == largest_distance)
+                                    {
+                                        ball.ver = UP;
+                                    }
+                                    if(distances[2] == largest_distance)
+                                    {
+                                        ball.hor = LEFT;
+                                    }
+                                    if(distances[3] == largest_distance)
+                                    {
+                                        ball.hor = RIGHT;
+                                    }
+
+                                    if(state == GAME)
+                                    {
+                                        bricks[row].x.erase(bricks[row].x.begin() + static_cast<int>(brick));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                ball.x += static_cast<float>(ball.hor) * (ball.velocity * std::cos(ball.angle)) * dT;
+                ball.y += static_cast<float>(ball.ver) * (ball.velocity * std::sin(ball.angle)) * dT;
+            }
 
             accumulator -= dT;
         }
@@ -503,18 +616,24 @@ int main(int argc, char* args[])
         }
 
         // paddle
-        SDL_SetRenderDrawColor(renderer, 10, 133, 194, 255);
-        SDL_FRect paddle_rect = {paddle.x, paddle.y, paddle.w, paddle.h};
-        SDL_RenderDrawRectF(renderer, &paddle_rect);
-        SDL_RenderFillRectF(renderer, &paddle_rect);
+        if(state == GAME)
+        {
+            SDL_SetRenderDrawColor(renderer, 10, 133, 194, 255);
+            SDL_FRect paddle_rect = {paddle.x, paddle.y, paddle.w, paddle.h};
+            SDL_RenderDrawRectF(renderer, &paddle_rect);
+            SDL_RenderFillRectF(renderer, &paddle_rect);
+        }
 
         // ball
-        SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
-        float interpolated_ball_x = ball.x + (static_cast<float>(ball.hor) * (ball.velocity * std::cos(ball.angle)) * dT) * interpolation;
-        float interpolated_ball_y = ball.y + (static_cast<float>(ball.ver) * (ball.velocity * std::sin(ball.angle)) * dT) * interpolation;
-        SDL_FRect ball_rect = {interpolated_ball_x, interpolated_ball_y, ball.w, ball.h};
-        SDL_RenderDrawRectF(renderer, &ball_rect);
-        SDL_RenderFillRectF(renderer, &ball_rect);
+        if(ball.in_play)
+        {
+            SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+            float interpolated_ball_x = ball.x + (static_cast<float>(ball.hor) * (ball.velocity * std::cos(ball.angle)) * dT) * interpolation;
+            float interpolated_ball_y = ball.y + (static_cast<float>(ball.ver) * (ball.velocity * std::sin(ball.angle)) * dT) * interpolation;
+            SDL_FRect ball_rect = {interpolated_ball_x, interpolated_ball_y, ball.w, ball.h};
+            SDL_RenderDrawRectF(renderer, &ball_rect);
+            SDL_RenderFillRectF(renderer, &ball_rect);
+        }
 
         SDL_RenderPresent(renderer);
         /* rendering */
