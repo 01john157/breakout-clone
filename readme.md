@@ -4,6 +4,7 @@ A clone of the 1976 arcade version of [Breakout](https://en.wikipedia.org/wiki/B
 
 ## Controls
 **A controller is required.**  
+`start` start the game  
 `left stick` move the paddle  
 
 ## Keybindings
