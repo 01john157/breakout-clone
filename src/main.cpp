@@ -196,8 +196,9 @@ int main(int argc, char* args[])
                 }
                 if(keys[SDL_SCANCODE_F5])
                 {
+                    state = ATTRACT;
                     ball.x = RENDER_WIDTH / 2;
-                    ball.y = RENDER_HEIGHT / 2;
+                    ball.y = 40;
                     ball.hor = std::uniform_int_distribution{0, 1}(rng) ? LEFT : RIGHT;
                     ball.ver = DOWN;
                     ball.velocity = RENDER_WIDTH * 0.8;
